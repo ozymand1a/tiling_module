@@ -1,0 +1,5 @@
+numpy>=1.20
+opencv-python>=4.5
+onnxruntime>=1.12
+ensemble-boxes>=1.0.9
+pillow>=10.0.0
