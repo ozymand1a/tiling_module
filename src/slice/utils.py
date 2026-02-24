@@ -1,8 +1,11 @@
-import numpy as np
 from typing import Literal
 
+import numpy as np
 
-def get_resolution_selector(res: str, height: int, width: int) -> tuple[int, int, int, int]:
+
+def get_resolution_selector(
+    res: str, height: int, width: int
+) -> tuple[int, int, int, int]:
     """Get resolution selector."""
     orientation = calc_aspect_ratio_orientation(width=width, height=height)
     x_overlap, y_overlap, slice_width, slice_height = calc_slice_and_overlap_params(
@@ -44,18 +47,18 @@ def calc_slice_and_overlap_params(
     """
 
     if resolution == "medium":
-        split_row, split_col, overlap_height_ratio, overlap_width_ratio = calc_ratio_and_slice(
-            orientation, slide=1, ratio=0.8
+        split_row, split_col, overlap_height_ratio, overlap_width_ratio = (
+            calc_ratio_and_slice(orientation, slide=1, ratio=0.8)
         )
 
     elif resolution == "high":
-        split_row, split_col, overlap_height_ratio, overlap_width_ratio = calc_ratio_and_slice(
-            orientation, slide=2, ratio=0.4
+        split_row, split_col, overlap_height_ratio, overlap_width_ratio = (
+            calc_ratio_and_slice(orientation, slide=2, ratio=0.4)
         )
 
     elif resolution == "ultra-high":
-        split_row, split_col, overlap_height_ratio, overlap_width_ratio = calc_ratio_and_slice(
-            orientation, slide=4, ratio=0.4
+        split_row, split_col, overlap_height_ratio, overlap_width_ratio = (
+            calc_ratio_and_slice(orientation, slide=4, ratio=0.4)
         )
     else:  # low condition
         split_col = 1
@@ -72,7 +75,11 @@ def calc_slice_and_overlap_params(
     return x_overlap, y_overlap, slice_width, slice_height
 
 
-def calc_ratio_and_slice(orientation: Literal["vertical", "horizontal", "square"], slide: int = 1, ratio: float = 0.1):
+def calc_ratio_and_slice(
+    orientation: Literal["vertical", "horizontal", "square"],
+    slide: int = 1,
+    ratio: float = 0.1,
+):
     """Return (slice_row, slice_col, overlap_height_ratio, overlap_width_ratio) for given orientation."""
     mapping = {
         "vertical": (slide, slide * 2, ratio, ratio),
@@ -80,13 +87,17 @@ def calc_ratio_and_slice(orientation: Literal["vertical", "horizontal", "square"
         "square": (slide, slide, ratio, ratio),
     }
     if orientation not in mapping:
-        raise ValueError(f"Invalid orientation: {orientation}. Must be one of 'vertical', 'horizontal', or 'square'.")
+        raise ValueError(
+            f"Invalid orientation: {orientation}. Must be one of 'vertical', 'horizontal', or 'square'."
+        )
     return mapping[orientation]
 
 
 def calc_aspect_ratio_orientation(width: int, height: int) -> str:
     """Return image orientation: 'vertical', 'horizontal', or 'square'."""
-    return "vertical" if width < height else "horizontal" if width > height else "square"
+    return (
+        "vertical" if width < height else "horizontal" if width > height else "square"
+    )
 
 
 def get_auto_slice_params(height: int, width: int) -> tuple[int, int, int, int]:

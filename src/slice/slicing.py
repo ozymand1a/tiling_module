@@ -6,9 +6,9 @@ import numpy as np
 from loguru import logger
 from PIL import Image
 
-from src.utils.cv import read_image_as_pil
+from src.slice.objects import SlicedImage, SliceImageResult
 from src.slice.utils import get_auto_slice_params
-from src.slice.objects import SliceImageResult, SlicedImage
+from src.utils.cv import read_image_as_pil
 
 IMAGE_EXTENSIONS_LOSSY = {".jpg", ".jpeg"}
 IMAGE_EXTENSIONS_LOSSLESS = {".png", ".bmp", ".tiff", ".tif"}
@@ -57,7 +57,10 @@ def get_slice_bboxes(
     y_max = y_min = 0
 
     if slice_height and slice_width:
-        for name, r in (("height", overlap_height_ratio), ("width", overlap_width_ratio)):
+        for name, r in (
+            ("height", overlap_height_ratio),
+            ("width", overlap_width_ratio),
+        ):
             if r is not None and r >= 1.0:
                 raise ValueError("Overlap ratio must be less than 1.0")
         r_h = overlap_height_ratio if overlap_height_ratio is not None else 0.2
@@ -65,9 +68,13 @@ def get_slice_bboxes(
         y_overlap = int(r_h * slice_height)
         x_overlap = int(r_w * slice_width)
     elif auto_slice_resolution:
-        x_overlap, y_overlap, slice_width, slice_height = get_auto_slice_params(height=image_height, width=image_width)
+        x_overlap, y_overlap, slice_width, slice_height = get_auto_slice_params(
+            height=image_height, width=image_width
+        )
     else:
-        raise ValueError("Compute type is not auto and slice width and height are not provided.")
+        raise ValueError(
+            "Compute type is not auto and slice width and height are not provided."
+        )
 
     while y_max < image_height:
         x_min = x_max = 0
@@ -168,7 +175,9 @@ def slice_image(
         overlap_width_ratio=overlap_width_ratio,
     )
 
-    sliced_image_result = SliceImageResult(original_image_size=[image_height, image_width], image_dir=output_dir)
+    sliced_image_result = SliceImageResult(
+        original_image_size=[image_height, image_width], image_dir=output_dir
+    )
     image_pil_arr = np.asarray(image_pil)
 
     for slice_bbox in slice_bboxes:
@@ -179,7 +188,7 @@ def slice_image(
         if out_ext:
             suffix = out_ext
         elif hasattr(image_pil, "filename"):
-            suffix = Path(getattr(image_pil, "filename")).suffix
+            suffix = Path(image_pil.filename).suffix
             if suffix in IMAGE_EXTENSIONS_LOSSY:
                 suffix = ".png"
             elif suffix in IMAGE_EXTENSIONS_LOSSLESS:
@@ -192,11 +201,22 @@ def slice_image(
 
     if output_file_name and output_dir:
         n = len(sliced_image_result)
-        filenames = [f"{output_file_name}_{'_'.join(map(str, b))}{suffix}" for b in slice_bboxes]
+        filenames = [
+            f"{output_file_name}_{'_'.join(map(str, b))}{suffix}" for b in slice_bboxes
+        ]
         max_workers = max(1, min(MAX_WORKERS, n))
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            list(executor.map(_export_single_slice, sliced_image_result.images, [output_dir] * n, filenames))
+            list(
+                executor.map(
+                    _export_single_slice,
+                    sliced_image_result.images,
+                    [output_dir] * n,
+                    filenames,
+                )
+            )
 
-    verboselog(f"Num slices: {len(slice_bboxes)} slice_height: {slice_height} slice_width: {slice_width}")
+    verboselog(
+        f"Num slices: {len(slice_bboxes)} slice_height: {slice_height} slice_width: {slice_width}"
+    )
 
     return sliced_image_result
