@@ -17,14 +17,8 @@ class Category:
 
 class PredictionScore:
     def __init__(self, value: float | np.ndarray):
-        """
-        Args:
-            score: prediction score between 0 and 1
-        """
-        # if score is a numpy object, convert it to python variable
-        if type(value).__module__ == "numpy":
+        if getattr(type(value), "__module__", None) == "numpy":
             value = copy.deepcopy(value).tolist()
-        # set score
         self.value = value
 
     def is_greater_than_threshold(self, threshold):
@@ -57,30 +51,7 @@ class ObjectPrediction:
         shift_amount: list[int] | None = [0, 0],
         full_shape: list[int] | None = None,
     ):
-        """Creates ObjectPrediction from bbox, score, category_id, category_name, segmentation.
-
-        Args:
-            bbox: list
-                [minx, miny, maxx, maxy]
-            score: float
-                Prediction score between 0 and 1
-            category_id: int
-                ID of the object category
-            category_name: str
-                Name of the object category
-            segmentation: List[List]
-                [
-                    [x1, y1, x2, y2, x3, y3, ...],
-                    [x1, y1, x2, y2, x3, y3, ...],
-                    ...
-                ]
-            shift_amount: list
-                To shift the box and mask predictions from sliced image
-                to full sized image, should be in the form of [shift_x, shift_y]
-            full_shape: list
-                Size of the full image after shifting, should be in
-                the form of [height, width]
-        """
+        """Create ObjectPrediction from bbox [minx, miny, maxx, maxy], score, category, optional segmentation."""
         self.score = PredictionScore(score)
         shift = shift_amount if shift_amount is not None else [0, 0]
         self.bbox = BoundingBox(box=bbox or [0, 0, 0, 0], shift_amount=(shift[0], shift[1]))
@@ -89,31 +60,20 @@ class ObjectPrediction:
         self.full_shape = full_shape
 
     def get_shifted_object_prediction(self):
-        """Returns shifted version ObjectPrediction.
-
-        Shifts bbox and mask coords. Used for mapping sliced predictions over full image.
-        """
+        """Return shifted ObjectPrediction (bbox/mask in full-image coords)."""
+        seg, full = (None, None)
         if self.mask:
             shifted_mask = self.mask.get_shifted_mask()
-            return ObjectPrediction(
-                bbox=self.bbox.get_shifted_box().to_xyxy(),
-                category_id=self.category.id,
-                score=self.score.value,
-                segmentation=shifted_mask.segmentation,
-                category_name=self.category.name,
-                shift_amount=[0, 0],
-                full_shape=shifted_mask.full_shape,
-            )
-        else:
-            return ObjectPrediction(
-                bbox=self.bbox.get_shifted_box().to_xyxy(),
-                category_id=self.category.id,
-                score=self.score.value,
-                segmentation=None,
-                category_name=self.category.name,
-                shift_amount=[0, 0],
-                full_shape=None,
-            )
+            seg, full = shifted_mask.segmentation, shifted_mask.full_shape
+        return ObjectPrediction(
+            bbox=self.bbox.get_shifted_box().to_xyxy(),
+            category_id=self.category.id,
+            score=self.score.value,
+            category_name=self.category.name,
+            segmentation=seg,
+            shift_amount=[0, 0],
+            full_shape=full,
+        )
 
     def __repr__(self):
         return f"""ObjectPrediction<
@@ -128,12 +88,12 @@ class PredictionResult:
         self,
         object_prediction_list: list[ObjectPrediction],
         image: Image.Image | str | np.ndarray,
-        durations_in_seconds: dict[str, Any] = dict(),
+        durations_in_seconds: dict[str, Any] | None = None,
     ):
-        self.image: Image.Image = read_image_as_pil(image)
+        self.image = read_image_as_pil(image)
         self.image_width, self.image_height = self.image.size
-        self.object_prediction_list: list[ObjectPrediction] = object_prediction_list
-        self.durations_in_seconds = durations_in_seconds
+        self.object_prediction_list = object_prediction_list
+        self.durations_in_seconds = durations_in_seconds or {}
 
     def export_visuals(
         self,
@@ -144,18 +104,6 @@ class PredictionResult:
         hide_conf: bool = False,
         file_name: str = "prediction_visual",
     ):
-        """
-
-        Args:
-            export_dir: directory for resulting visualization to be exported
-            text_size: size of the category name over box
-            rect_th: rectangle thickness
-            hide_labels: hide labels
-            hide_conf: hide confidence
-            file_name: saving name
-        Returns:
-
-        """
         Path(export_dir).mkdir(parents=True, exist_ok=True)
         visualize_object_predictions(
             image=np.ascontiguousarray(self.image),

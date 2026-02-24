@@ -1,18 +1,17 @@
-from pathlib import Path
-from PIL import Image
-import copy
 import time
-import numpy as np
-from tqdm import tqdm
-from typing import Any
-from src.utils.cv import read_image_as_pil
+from pathlib import Path
 
+import numpy as np
+from PIL import Image
+from tqdm import tqdm
+
+from src.slice import slice_image
+from src.postprocess import PostprocessPredictions
 from src.postprocess.nmm import NMMPostprocess
 from src.postprocess.nms import NMSPostprocess
 from src.postprocess.wbf import WBFPostprocess
-from src.postprocess import PostprocessPredictions
 from src.tile.objects import ObjectPrediction, PredictionResult
-from src.slice import slice_image
+from src.utils.cv import read_image_as_pil
 
 POSTPROCESS_NAME_TO_CLASS = {
     "NMM": NMMPostprocess,
@@ -66,22 +65,15 @@ def get_prediction(
             object_prediction_list: a list of ObjectPrediction
             durations_in_seconds: a dict containing elapsed times for profiling
     """
-    durations_in_seconds = dict()
-
-    # read image as pil
+    durations_in_seconds = {}
     image_as_pil = read_image_as_pil(image)
-    # get prediction
-    # ensure shift_amount is a list instance (avoid mutable default arg)
-    if shift_amount is None:
-        shift_amount = [0, 0]
+    shift_amount = shift_amount or [0, 0]
 
     time_start = time.perf_counter()
     detection_model.perform_inference(np.ascontiguousarray(image_as_pil))
-    time_end = time.perf_counter() - time_start
-    durations_in_seconds["prediction"] = time_end
+    durations_in_seconds["prediction"] = time.perf_counter() - time_start
 
-    if full_shape is None:
-        full_shape = [image_as_pil.height, image_as_pil.width]
+    full_shape = full_shape or [image_as_pil.height, image_as_pil.width]
 
     # process prediction
     time_start = time.perf_counter()
@@ -101,11 +93,7 @@ def get_prediction(
     durations_in_seconds["postprocess"] = time_end
 
     if verbose == 1:
-        print(
-            "Prediction performed in",
-            durations_in_seconds["prediction"],
-            "seconds.",
-        )
+        print("Prediction performed in", durations_in_seconds["prediction"], "seconds.")
 
     return PredictionResult(
         image=image, object_prediction_list=object_prediction_list, durations_in_seconds=durations_in_seconds
@@ -198,12 +186,7 @@ def get_sliced_prediction(
             durations_in_seconds: a dict containing elapsed times for profiling
     """
 
-    # for profiling
-    durations_in_seconds = dict()
-
-    # currently only 1 batch supported
-    num_batch = 1
-    # create slices from full image
+    durations_in_seconds = {}
     time_start = time.perf_counter()
     slice_image_result = slice_image(
         image=image,
@@ -215,21 +198,12 @@ def get_sliced_prediction(
         overlap_width_ratio=overlap_width_ratio,
         auto_slice_resolution=auto_slice_resolution,
     )
-    from sahi.models.ultralytics import UltralyticsDetectionModel
-
     num_slices = len(slice_image_result)
-    time_end = time.perf_counter() - time_start
-    durations_in_seconds["slice"] = time_end
+    durations_in_seconds["slice"] = time.perf_counter() - time_start
 
-    # if isinstance(detection_model, UltralyticsDetectionModel) and detection_model.is_obb:
-    #     # Only NMS is supported for OBB model outputs
-    #     postprocess_type = "NMS"
-
-    # init match postprocess instance
-    if postprocess_type not in POSTPROCESS_NAME_TO_CLASS.keys():
+    if postprocess_type not in POSTPROCESS_NAME_TO_CLASS:
         raise ValueError(
-            f"postprocess_type should be one of {list(POSTPROCESS_NAME_TO_CLASS.keys())} "
-            f"but given as {postprocess_type}"
+            f"postprocess_type should be one of {list(POSTPROCESS_NAME_TO_CLASS)} but given as {postprocess_type}"
         )
     postprocess_constructor = POSTPROCESS_NAME_TO_CLASS[postprocess_type]
     postprocess = postprocess_constructor(
@@ -240,40 +214,25 @@ def get_sliced_prediction(
 
     postprocess_time = 0
     time_start = time.perf_counter()
-    # create prediction input
-    num_group = int(num_slices / num_batch)
-    if verbose == 1 or verbose == 2:
+    num_group = num_slices  # num_batch is 1
+    if verbose in (1, 2):
         tqdm.write(f"Performing prediction on {num_slices} slices.")
 
-    if progress_bar:
-        slice_iterator = tqdm(range(num_group), desc="Processing slices", total=num_group)
-    else:
-        slice_iterator = range(num_group)
+    slice_iterator = tqdm(range(num_group), desc="Processing slices", total=num_group) if progress_bar else range(num_group)
+    full_shape = [slice_image_result.original_image_height, slice_image_result.original_image_width]
 
     object_prediction_list = []
-    # perform sliced prediction
     for group_ind in slice_iterator:
-        # prepare batch (currently supports only 1 batch)
-        image_list = []
-        shift_amount_list = []
-        for image_ind in range(num_batch):
-            image_list.append(slice_image_result.images[group_ind * num_batch + image_ind])
-            shift_amount_list.append(slice_image_result.starting_pixels[group_ind * num_batch + image_ind])
-        # perform batch prediction
         prediction_result = get_prediction(
-            image=image_list[0],
+            image=slice_image_result.images[group_ind],
             detection_model=detection_model,
-            shift_amount=shift_amount_list[0],
-            full_shape=[
-                slice_image_result.original_image_height,
-                slice_image_result.original_image_width,
-            ],
+            shift_amount=slice_image_result.starting_pixels[group_ind],
+            full_shape=full_shape,
             exclude_classes_by_name=exclude_classes_by_name,
             exclude_classes_by_id=exclude_classes_by_id,
         )
-        # convert sliced predictions to full predictions
         for object_prediction in prediction_result.object_prediction_list:
-            if object_prediction:  # if not empty
+            if object_prediction:
                 object_prediction_list.append(object_prediction.get_shifted_object_prediction())
 
         # merge matching predictions during sliced prediction
@@ -286,16 +245,12 @@ def get_sliced_prediction(
         if progress_callback is not None:
             progress_callback(group_ind + 1, num_group)
 
-    # perform standard prediction
     if num_slices > 1 and perform_standard_pred:
         prediction_result = get_prediction(
             image=image,
             detection_model=detection_model,
             shift_amount=[0, 0],
-            full_shape=[
-                slice_image_result.original_image_height,
-                slice_image_result.original_image_width,
-            ],
+            full_shape=full_shape,
             postprocess=None,
             exclude_classes_by_name=exclude_classes_by_name,
             exclude_classes_by_id=exclude_classes_by_id,
@@ -313,21 +268,12 @@ def get_sliced_prediction(
     durations_in_seconds["postprocess"] = postprocess_time
 
     if verbose == 2:
-        print(
-            "Slicing performed in",
-            durations_in_seconds["slice"],
-            "seconds.",
-        )
-        print(
-            "Prediction performed in",
-            durations_in_seconds["prediction"],
-            "seconds.",
-        )
-        print(
-            "Postprocessing performed in",
-            durations_in_seconds["postprocess"],
-            "seconds.",
-        )
+        for key, label in [
+            ("slice", "Slicing"),
+            ("prediction", "Prediction"),
+            ("postprocess", "Postprocessing"),
+        ]:
+            print(f"{label} performed in {durations_in_seconds[key]} seconds.")
 
     return PredictionResult(
         image=image, object_prediction_list=object_prediction_list, durations_in_seconds=durations_in_seconds
