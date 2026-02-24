@@ -5,23 +5,23 @@ Works with SAHI-style ObjectPrediction (bbox, category.name, score).
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import cv2
 import numpy as np
 
-
 # Distinct, readable palette (BGR for cv2) – avoid pure white/yellow on light bg
 _PALETTE_BGR = [
-    (41, 128, 255),   # orange
-    (255, 128, 41),   # blue
-    (41, 255, 128),   # green
-    (255, 41, 128),   # magenta
-    (128, 41, 255),   # purple
-    (128, 255, 41),   # lime
-    (255, 200, 100), # light blue
-    (100, 200, 255), # peach
-    (200, 255, 100), # mint
+    (41, 128, 255),  # orange
+    (255, 128, 41),  # blue
+    (41, 255, 128),  # green
+    (255, 41, 128),  # magenta
+    (128, 41, 255),  # purple
+    (128, 255, 41),  # lime
+    (255, 200, 100),  # light blue
+    (100, 200, 255),  # peach
+    (200, 255, 100),  # mint
     (180, 130, 70),  # teal
     (70, 130, 180),  # brown
     (130, 70, 180),  # violet
@@ -31,14 +31,13 @@ _PALETTE_BGR = [
 def _bbox_xyxy(obj: Any) -> tuple[int, int, int, int]:
     """Get (x1, y1, x2, y2) from SAHI ObjectPrediction or any .bbox."""
     bbox = obj.bbox
-    if hasattr(bbox, "to_xyxy"):
-        coords = bbox.to_xyxy()
-    else:
-        coords = bbox
+    coords = bbox.to_xyxy() if hasattr(bbox, "to_xyxy") else bbox
     return tuple(int(round(x)) for x in coords[:4])
 
 
-def _get_color(category_id: int | None, category_name: str | None) -> tuple[int, int, int]:
+def _get_color(
+    category_id: int | None, category_name: str | None
+) -> tuple[int, int, int]:
     """Stable color per class (BGR)."""
     if category_id is not None:
         idx = category_id % len(_PALETTE_BGR)
@@ -108,8 +107,14 @@ def draw_bboxes(
         if x2 <= x1 or y2 <= y1:
             continue
 
-        name = getattr(getattr(obj, "category", None), "name", None) or getattr(obj, "category_name", "") or "?"
-        category_id = getattr(getattr(obj, "category", None), "id", None) or getattr(obj, "category_id", None)
+        name = (
+            getattr(getattr(obj, "category", None), "name", None)
+            or getattr(obj, "category_name", "")
+            or "?"
+        )
+        category_id = getattr(getattr(obj, "category", None), "id", None) or getattr(
+            obj, "category_id", None
+        )
         color = _get_color(category_id, name)
         score = _get_score(obj)
 
@@ -148,7 +153,9 @@ def draw_bboxes(
                 cv2.rectangle(overlay, (lx1, ly1), (lx2, ly2), color, -1)
                 cv2.addWeighted(overlay, alpha_bg, img, 1 - alpha_bg, 0, img)
                 # Border around label
-                cv2.rectangle(img, (lx1, ly1), (lx2, ly2), color, max(1, box_thickness - 1))
+                cv2.rectangle(
+                    img, (lx1, ly1), (lx2, ly2), color, max(1, box_thickness - 1)
+                )
             tx = x1 + label_padding
             if y1 - th - 2 >= 0:
                 ty = y1 - 2 - label_padding  # baseline just above box
