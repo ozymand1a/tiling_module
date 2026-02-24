@@ -79,4 +79,4 @@ dmypy.json
 
 # Ruff, Black, etc.
 .ruff_cache/
-results/
+result/
