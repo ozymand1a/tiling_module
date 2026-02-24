@@ -1,7 +1,7 @@
 .PHONY: install check
 
 install:
-	uv sync --extra dev
+	uv sync --extra dev --extra large-images --extra scripts
 
 check:
 	uv run ruff check src scripts
