@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiling-module"
+version = "0.1.0"
+description = "Image tiling, slicing, and object detection postprocessing (NMS, NMM, WBF) with YOLO/ONNX support."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = []
+keywords = ["tiling", "slicing", "object-detection", "nms", "wbf", "yolo", "onnx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+dependencies = [
+    "numpy>=1.21",
+    "Pillow>=9.0",
+    "torch>=1.9",
+    "shapely>=2.0",
+    "tqdm>=4.62",
+    "loguru>=0.6",
+    "opencv-python>=4.5",
+    "onnxruntime>=1.12",
+    "requests>=2.26",
+]
+
+[project.optional-dependencies]
+# Large / TIFF images (used in src/utils/cv.py fallback)
+large-images = [
+    "scikit-image>=0.19",
+    "imagecodecs>=2022.2",
+]
+# Scripts that use SAHI (e.g. scripts/check_tiling.py)
+scripts = [
+    "sahi>=0.11",
+]
+# Linting and formatting
+dev = [
+    "ruff>=0.8",
+]
+
+[project.urls]
+Repository = ""
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+src = ["src", "scripts"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "ARG001", # unused function argument
+    "ARG002", # unused method argument (API)
+    "ARG005", # unused lambda argument
+    "B006",   # mutable default (API)
+    "B007",   # loop variable not used
+    "E402",   # module level import not at top (used for lazy imports in __init__.py)
+    "F841",   # assigned but never used
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
