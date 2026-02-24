@@ -29,7 +29,9 @@ class BoundingBox:
 
     def __post_init__(self):
         if len(self.box) != 4 or any(coord < 0 for coord in self.box):
-            raise ValueError("box must be 4 non-negative floats: [minx, miny, maxx, maxy]")
+            raise ValueError(
+                "box must be 4 non-negative floats: [minx, miny, maxx, maxy]"
+            )
         if len(self.shift_amount) != 2:
             raise ValueError("shift_amount must be 2 integers: [shift_x, shift_y]")
 
@@ -61,22 +63,10 @@ class BoundingBox:
     def area(self):
         return (self.maxx - self.minx) * (self.maxy - self.miny)
 
-    def get_expanded_box(self, ratio: float = 0.1, max_x: int | None = None, max_y: int | None = None):
-        """Returns an expanded bounding box by increasing its size by a given ratio. The expansion is applied equally in
-        all directions. Optionally, the expanded box can be clipped to maximum x and y boundaries.
-
-        Args:
-            ratio (float, optional): The proportion by which to expand the box size.
-                Default is 0.1 (10%).
-            max_x (int, optional): The maximum allowed x-coordinate for the expanded box.
-                If None, no maximum is applied.
-            max_y (int, optional): The maximum allowed y-coordinate for the expanded box.
-                If None, no maximum is applied.
-
-        Returns:
-            BoundingBox: A new BoundingBox instance representing the expanded box.
-        """
-
+    def get_expanded_box(
+        self, ratio: float = 0.1, max_x: int | None = None, max_y: int | None = None
+    ):
+        """Return a new BoundingBox expanded by ratio in all directions, optionally clipped to max_x/max_y."""
         w = self.maxx - self.minx
         h = self.maxy - self.miny
         y_mar = int(h * ratio)
@@ -89,47 +79,18 @@ class BoundingBox:
         return BoundingBox(box)
 
     def to_xywh(self):
-        """Returns [xmin, ymin, width, height]
-
-        Returns:
-            List[float]: A list containing the bounding box in the format [xmin, ymin, width, height].
-        """
-
         return [self.minx, self.miny, self.maxx - self.minx, self.maxy - self.miny]
 
     def to_coco_bbox(self):
-        """
-        Returns the bounding box in COCO format: [xmin, ymin, width, height]
-
-        Returns:
-            List[float]: A list containing the bounding box in COCO format.
-        """
         return self.to_xywh()
 
     def to_xyxy(self):
-        """
-        Returns: [xmin, ymin, xmax, ymax]
-
-        Returns:
-            List[float]: A list containing the bounding box in the format [xmin, ymin, xmax, ymax].
-        """
         return [self.minx, self.miny, self.maxx, self.maxy]
 
     def to_voc_bbox(self):
-        """
-        Returns the bounding box in VOC format: [xmin, ymin, xmax, ymax]
-
-        Returns:
-            List[float]: A list containing the bounding box in VOC format.
-        """
         return self.to_xyxy()
 
     def get_shifted_box(self):
-        """Returns shifted BoundingBox.
-
-        Returns:
-            BoundingBox: A new BoundingBox instance representing the shifted box.
-        """
         box = [
             self.minx + self.shift_x,
             self.miny + self.shift_y,

@@ -3,37 +3,61 @@ import numpy as np
 from src.tile.objects import ObjectPrediction
 
 
-def calculate_box_union(box1: list[int] | np.ndarray, box2: list[int] | np.ndarray) -> list[int]:
-    """
-    Args:
-        box1 (List[int]): [x1, y1, x2, y2]
-        box2 (List[int]): [x1, y1, x2, y2]
-    """
-    box1 = np.array(box1)
-    box2 = np.array(box2)
-    left_top = np.minimum(box1[:2], box2[:2])
-    right_bottom = np.maximum(box1[2:], box2[2:])
-    return list(np.concatenate((left_top, right_bottom)))
+def box_intersection_area_ij(
+    x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.ndarray, i: int, j: int
+) -> float:
+    """Intersection area of two axis-aligned boxes at indices i and j (arrays are x1,y1,x2,y2 per box)."""
+    a = np.array([float(x1[i]), float(y1[i]), float(x2[i]), float(y2[i])])
+    b = np.array([float(x1[j]), float(y1[j]), float(x2[j]), float(y2[j])])
+    return calculate_intersection_area(a, b)
+
+
+def query_overlapping_indices(
+    x1: np.ndarray,
+    y1: np.ndarray,
+    x2: np.ndarray,
+    y2: np.ndarray,
+    current_idx: int,
+    n: int,
+) -> list[int]:
+    """Indices j != current_idx where box j overlaps (AABB) the box at current_idx."""
+    x1_c, y1_c, x2_c, y2_c = (
+        x1[current_idx],
+        y1[current_idx],
+        x2[current_idx],
+        y2[current_idx],
+    )
+    return [
+        j
+        for j in range(n)
+        if j != current_idx
+        and x1[j] < x2_c
+        and x1_c < x2[j]
+        and y1[j] < y2_c
+        and y1_c < y2[j]
+    ]
+
+
+def calculate_box_union(
+    box1: list[int] | np.ndarray, box2: list[int] | np.ndarray
+) -> list[int]:
+    """Union of two boxes [x1, y1, x2, y2]."""
+    a, b = np.array(box1), np.array(box2)
+    return list(np.concatenate((np.minimum(a[:2], b[:2]), np.maximum(a[2:], b[2:]))))
 
 
 def calculate_area(box: list[int] | np.ndarray) -> float:
-    """
-    Args:
-        box (List[int]): [x1, y1, x2, y2]
-    """
+    """Area of box [x1, y1, x2, y2]."""
     return (box[2] - box[0]) * (box[3] - box[1])
 
 
 def calculate_intersection_area(box1: np.ndarray, box2: np.ndarray) -> float:
-    """
-    Args:
-        box1 (np.ndarray): np.array([x1, y1, x2, y2])
-        box2 (np.ndarray): np.array([x1, y1, x2, y2])
-    """
-    left_top = np.maximum(box1[:2], box2[:2])
-    right_bottom = np.minimum(box1[2:], box2[2:])
-    width_height = (right_bottom - left_top).clip(min=0)
-    return width_height[0] * width_height[1]
+    """Intersection area of two boxes [x1, y1, x2, y2]."""
+    lt = np.maximum(box1[:2], box2[:2])
+    rb = np.minimum(box1[2:], box2[2:])
+    wh = (rb - lt).clip(min=0)
+    return wh[0] * wh[1]
+
 
 def calculate_bbox_iou(pred1: ObjectPrediction, pred2: ObjectPrediction) -> float:
     """Returns the ratio of intersection area to the union."""
@@ -57,13 +81,12 @@ def calculate_bbox_ios(pred1: ObjectPrediction, pred2: ObjectPrediction) -> floa
 
 
 def has_match(
-    pred1: ObjectPrediction, pred2: ObjectPrediction, match_type: str = "IOU", match_threshold: float = 0.5
+    pred1: ObjectPrediction,
+    pred2: ObjectPrediction,
+    match_type: str = "IOU",
+    match_threshold: float = 0.5,
 ) -> bool:
-    if match_type == "IOU":
-        threshold_condition = calculate_bbox_iou(pred1, pred2) > match_threshold
-    elif match_type == "IOS":
-        threshold_condition = calculate_bbox_ios(pred1, pred2) > match_threshold
-    else:
-        raise ValueError()
-    return threshold_condition
-
+    calc = {"IOU": calculate_bbox_iou, "IOS": calculate_bbox_ios}
+    if match_type not in calc:
+        raise ValueError(f"match_type must be IOU or IOS, got {match_type}")
+    return calc[match_type](pred1, pred2) > match_threshold

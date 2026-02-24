@@ -2,9 +2,8 @@ import warnings
 
 import numpy as np
 
-from src.tile.objects import ObjectPrediction
 from src.postprocess import PostprocessPredictions
-
+from src.tile.objects import ObjectPrediction
 
 # -----------------------------------------------------------------------------
 # Core WBF logic (unchanged)
@@ -13,23 +12,18 @@ from src.postprocess import PostprocessPredictions
 
 def prefilter_boxes(boxes, scores, labels, weights, thr):
     """Create dict with boxes stored by its label."""
-    new_boxes = dict()
+    new_boxes = {}
 
     for t in range(len(boxes)):
-
         if len(boxes[t]) != len(scores[t]):
             print(
-                "Error. Length of boxes arrays not equal to length of scores array: {} != {}".format(
-                    len(boxes[t]), len(scores[t])
-                )
+                f"Error. Length of boxes arrays not equal to length of scores array: {len(boxes[t])} != {len(scores[t])}"
             )
             exit()
 
         if len(boxes[t]) != len(labels[t]):
             print(
-                "Error. Length of boxes arrays not equal to length of labels array: {} != {}".format(
-                    len(boxes[t]), len(labels[t])
-                )
+                f"Error. Length of boxes arrays not equal to length of labels array: {len(boxes[t])} != {len(labels[t])}"
             )
             exit()
 
@@ -46,37 +40,52 @@ def prefilter_boxes(boxes, scores, labels, weights, thr):
 
             # Box data checks
             if x2 < x1:
-                warnings.warn("X2 < X1 value in box. Swap them.")
+                warnings.warn("X2 < X1 value in box. Swap them.", stacklevel=2)
                 x1, x2 = x2, x1
             if y2 < y1:
-                warnings.warn("Y2 < Y1 value in box. Swap them.")
+                warnings.warn("Y2 < Y1 value in box. Swap them.", stacklevel=2)
                 y1, y2 = y2, y1
             if x1 < 0:
-                warnings.warn("X1 < 0 in box. Set it to 0.")
+                warnings.warn("X1 < 0 in box. Set it to 0.", stacklevel=2)
                 x1 = 0
             if x1 > 1:
-                warnings.warn("X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.")
+                warnings.warn(
+                    "X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.",
+                    stacklevel=2,
+                )
                 x1 = 1
             if x2 < 0:
-                warnings.warn("X2 < 0 in box. Set it to 0.")
+                warnings.warn("X2 < 0 in box. Set it to 0.", stacklevel=2)
                 x2 = 0
             if x2 > 1:
-                warnings.warn("X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.")
+                warnings.warn(
+                    "X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.",
+                    stacklevel=2,
+                )
                 x2 = 1
             if y1 < 0:
-                warnings.warn("Y1 < 0 in box. Set it to 0.")
+                warnings.warn("Y1 < 0 in box. Set it to 0.", stacklevel=2)
                 y1 = 0
             if y1 > 1:
-                warnings.warn("Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.")
+                warnings.warn(
+                    "Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.",
+                    stacklevel=2,
+                )
                 y1 = 1
             if y2 < 0:
-                warnings.warn("Y2 < 0 in box. Set it to 0.")
+                warnings.warn("Y2 < 0 in box. Set it to 0.", stacklevel=2)
                 y2 = 0
             if y2 > 1:
-                warnings.warn("Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.")
+                warnings.warn(
+                    "Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.",
+                    stacklevel=2,
+                )
                 y2 = 1
             if (x2 - x1) * (y2 - y1) == 0.0:
-                warnings.warn("Zero area box skipped: {}.".format(box_part))
+                warnings.warn(
+                    f"Zero area box skipped: {box_part}.",
+                    stacklevel=2,
+                )
                 continue
 
             # [label, score, weight, model index, x1, y1, x2, y2]
@@ -194,22 +203,20 @@ def weighted_boxes_fusion(
         weights = np.ones(len(boxes_list))
     if len(weights) != len(boxes_list):
         print(
-            "Warning: incorrect number of weights {}. Must be: {}. Set weights equal to 1.".format(
-                len(weights), len(boxes_list)
-            )
+            f"Warning: incorrect number of weights {len(weights)}. Must be: {len(boxes_list)}. Set weights equal to 1."
         )
         weights = np.ones(len(boxes_list))
     weights = np.array(weights)
 
     if conf_type not in ["avg", "max", "box_and_model_avg", "absent_model_aware_avg"]:
         print(
-            'Unknown conf_type: {}. Must be "avg", "max" or "box_and_model_avg", or "absent_model_aware_avg"'.format(
-                conf_type
-            )
+            f'Unknown conf_type: {conf_type}. Must be "avg", "max" or "box_and_model_avg", or "absent_model_aware_avg"'
         )
         exit()
 
-    filtered_boxes = prefilter_boxes(boxes_list, scores_list, labels_list, weights, skip_box_thr)
+    filtered_boxes = prefilter_boxes(
+        boxes_list, scores_list, labels_list, weights, skip_box_thr
+    )
     if len(filtered_boxes) == 0:
         return np.zeros((0, 4)), np.zeros((0,)), np.zeros((0,))
 
@@ -235,7 +242,9 @@ def weighted_boxes_fusion(
             clustered_boxes = new_boxes[i]
             if conf_type == "box_and_model_avg":
                 clustered_boxes = np.array(clustered_boxes)
-                weighted_boxes[i, 1] = weighted_boxes[i, 1] * len(clustered_boxes) / weighted_boxes[i, 2]
+                weighted_boxes[i, 1] = (
+                    weighted_boxes[i, 1] * len(clustered_boxes) / weighted_boxes[i, 2]
+                )
                 _, idx = np.unique(clustered_boxes[:, 3], return_index=True)
                 weighted_boxes[i, 1] = (
                     weighted_boxes[i, 1] * clustered_boxes[idx, 2].sum() / weights.sum()
@@ -254,10 +263,14 @@ def weighted_boxes_fusion(
                 weighted_boxes[i, 1] = weighted_boxes[i, 1] / weights.max()
             elif not allows_overflow:
                 weighted_boxes[i, 1] = (
-                    weighted_boxes[i, 1] * min(len(weights), len(clustered_boxes)) / weights.sum()
+                    weighted_boxes[i, 1]
+                    * min(len(weights), len(clustered_boxes))
+                    / weights.sum()
                 )
             else:
-                weighted_boxes[i, 1] = weighted_boxes[i, 1] * len(clustered_boxes) / weights.sum()
+                weighted_boxes[i, 1] = (
+                    weighted_boxes[i, 1] * len(clustered_boxes) / weights.sum()
+                )
         overall_boxes.append(weighted_boxes)
     overall_boxes = np.concatenate(overall_boxes, axis=0)
     overall_boxes = overall_boxes[overall_boxes[:, 1].argsort()[::-1]]
@@ -293,10 +306,19 @@ def object_predictions_to_wbf_input(
     if not object_predictions:
         return [], [], [], (1.0, 1.0), {}
 
-    boxes = np.array([obj.bbox.to_xyxy() for obj in object_predictions], dtype=np.float32)
+    boxes = np.array(
+        [obj.bbox.to_xyxy() for obj in object_predictions], dtype=np.float32
+    )
     scores = np.array([obj.score.value for obj in object_predictions], dtype=np.float32)
-    labels = np.array([obj.category.id for obj in object_predictions], dtype=np.int32)
-    label_id_to_name = {obj.category.id: obj.category.name for obj in object_predictions}
+    # Use Python int for category id so dict lookup and same-label clustering are consistent
+    labels = np.array(
+        [int(getattr(obj.category, "id", 0)) for obj in object_predictions],
+        dtype=np.int32,
+    )
+    label_id_to_name = {
+        int(getattr(obj.category, "id", 0)): getattr(obj.category, "name", "?")
+        for obj in object_predictions
+    }
 
     if normalize:
         width = float(max(boxes[:, 2].max(), 1.0))
@@ -363,11 +385,15 @@ def wbf_output_to_object_predictions(
 
 
 class WBFPostprocess(PostprocessPredictions):
-    """Postprocess predictions using Weighted Boxes Fusion."""
+    """Postprocess predictions using Weighted Boxes Fusion.
+
+    For tiled/sliced predictions, overlapping boxes from different tiles often have
+    IoU < 0.5, so a lower iou_thr (e.g. 0.3–0.4) is recommended so they merge.
+    """
 
     def __init__(
         self,
-        match_threshold: float = 0.1,
+        match_threshold: float = 0.35,
         match_metric: str = "IOU",
         class_agnostic: bool = True,
         *,
@@ -381,7 +407,11 @@ class WBFPostprocess(PostprocessPredictions):
             match_metric=match_metric,
             class_agnostic=class_agnostic,
         )
-        self.iou_thr = iou_thr if iou_thr is not None else match_threshold
+        # For tiled predictions, overlapping boxes from different tiles often have IoU < 0.5.
+        # When iou_thr is not set, cap at 0.35 so WBF merges them; pass iou_thr explicitly to override.
+        self.iou_thr = (
+            float(iou_thr) if iou_thr is not None else min(match_threshold, 0.35)
+        )
         self.skip_box_thr = skip_box_thr
         self.conf_type = conf_type
         self.allows_overflow = allows_overflow
@@ -393,17 +423,14 @@ class WBFPostprocess(PostprocessPredictions):
         if not object_predictions:
             return []
 
-        (
-            boxes_list,
-            scores_list,
-            labels_list,
-            scale,
-            label_id_to_name,
-        ) = object_predictions_to_wbf_input(object_predictions, normalize=True)
-
-        shift_amount = (0, 0)
-        if hasattr(object_predictions[0].bbox, "shift_amount"):
-            shift_amount = tuple(object_predictions[0].bbox.shift_amount)
+        boxes_list, scores_list, labels_list, scale, label_id_to_name = (
+            object_predictions_to_wbf_input(object_predictions, normalize=True)
+        )
+        shift_amount = (
+            tuple(object_predictions[0].bbox.shift_amount)
+            if hasattr(object_predictions[0].bbox, "shift_amount")
+            else (0, 0)
+        )
 
         boxes, scores, labels = weighted_boxes_fusion(
             boxes_list,
