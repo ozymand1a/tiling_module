@@ -1,10 +1,11 @@
 import copy
+from typing import Any
+
 import numpy as np
 from PIL import Image
-from pathlib import Path
-from typing import Any
-from src.utils.cv import read_image_as_pil
+
 from src.postprocess.annotation import BoundingBox
+from src.utils.cv import read_image_as_pil
 
 
 class Category:
@@ -54,7 +55,9 @@ class ObjectPrediction:
         """Create ObjectPrediction from bbox [minx, miny, maxx, maxy], score, category, optional segmentation."""
         self.score = PredictionScore(score)
         shift = shift_amount if shift_amount is not None else [0, 0]
-        self.bbox = BoundingBox(box=bbox or [0, 0, 0, 0], shift_amount=(shift[0], shift[1]))
+        self.bbox = BoundingBox(
+            box=bbox or [0, 0, 0, 0], shift_amount=(shift[0], shift[1])
+        )
         self.category = Category(id=category_id, name=category_name)
         self.mask = None
         self.full_shape = full_shape
@@ -94,27 +97,3 @@ class PredictionResult:
         self.image_width, self.image_height = self.image.size
         self.object_prediction_list = object_prediction_list
         self.durations_in_seconds = durations_in_seconds or {}
-
-    def export_visuals(
-        self,
-        export_dir: str,
-        text_size: float | None = None,
-        rect_th: int | None = None,
-        hide_labels: bool = False,
-        hide_conf: bool = False,
-        file_name: str = "prediction_visual",
-    ):
-        Path(export_dir).mkdir(parents=True, exist_ok=True)
-        visualize_object_predictions(
-            image=np.ascontiguousarray(self.image),
-            object_prediction_list=self.object_prediction_list,
-            rect_th=rect_th,
-            text_size=text_size,
-            text_th=None,
-            color=None,
-            hide_labels=hide_labels,
-            hide_conf=hide_conf,
-            output_dir=export_dir,
-            file_name=file_name,
-            export_format="png",
-        )

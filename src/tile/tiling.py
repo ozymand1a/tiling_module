@@ -1,15 +1,13 @@
 import time
-from pathlib import Path
 
 import numpy as np
-from PIL import Image
 from tqdm import tqdm
 
-from src.slice import slice_image
 from src.postprocess import PostprocessPredictions
 from src.postprocess.nmm import NMMPostprocess
 from src.postprocess.nms import NMSPostprocess
 from src.postprocess.wbf import WBFPostprocess
+from src.slice import slice_image
 from src.tile.objects import ObjectPrediction, PredictionResult
 from src.utils.cv import read_image_as_pil
 
@@ -20,7 +18,9 @@ POSTPROCESS_NAME_TO_CLASS = {
 }
 
 
-def filter_predictions(object_prediction_list, exclude_classes_by_name, exclude_classes_by_id):
+def filter_predictions(
+    object_prediction_list, exclude_classes_by_name, exclude_classes_by_id
+):
     return [
         obj_pred
         for obj_pred in object_prediction_list
@@ -82,8 +82,12 @@ def get_prediction(
         shift_amount=shift_amount,
         full_shape=full_shape,
     )
-    object_prediction_list: list[ObjectPrediction] = detection_model.object_prediction_list
-    object_prediction_list = filter_predictions(object_prediction_list, exclude_classes_by_name, exclude_classes_by_id)
+    object_prediction_list: list[ObjectPrediction] = (
+        detection_model.object_prediction_list
+    )
+    object_prediction_list = filter_predictions(
+        object_prediction_list, exclude_classes_by_name, exclude_classes_by_id
+    )
 
     # postprocess matching predictions
     if postprocess is not None:
@@ -96,7 +100,9 @@ def get_prediction(
         print("Prediction performed in", durations_in_seconds["prediction"], "seconds.")
 
     return PredictionResult(
-        image=image, object_prediction_list=object_prediction_list, durations_in_seconds=durations_in_seconds
+        image=image,
+        object_prediction_list=object_prediction_list,
+        durations_in_seconds=durations_in_seconds,
     )
 
 
@@ -218,8 +224,15 @@ def get_sliced_prediction(
     if verbose in (1, 2):
         tqdm.write(f"Performing prediction on {num_slices} slices.")
 
-    slice_iterator = tqdm(range(num_group), desc="Processing slices", total=num_group) if progress_bar else range(num_group)
-    full_shape = [slice_image_result.original_image_height, slice_image_result.original_image_width]
+    slice_iterator = (
+        tqdm(range(num_group), desc="Processing slices", total=num_group)
+        if progress_bar
+        else range(num_group)
+    )
+    full_shape = [
+        slice_image_result.original_image_height,
+        slice_image_result.original_image_width,
+    ]
 
     object_prediction_list = []
     for group_ind in slice_iterator:
@@ -233,10 +246,15 @@ def get_sliced_prediction(
         )
         for object_prediction in prediction_result.object_prediction_list:
             if object_prediction:
-                object_prediction_list.append(object_prediction.get_shifted_object_prediction())
+                object_prediction_list.append(
+                    object_prediction.get_shifted_object_prediction()
+                )
 
         # merge matching predictions during sliced prediction
-        if merge_buffer_length is not None and len(object_prediction_list) > merge_buffer_length:
+        if (
+            merge_buffer_length is not None
+            and len(object_prediction_list) > merge_buffer_length
+        ):
             postprocess_time_start = time.time()
             object_prediction_list = postprocess(object_prediction_list)
             postprocess_time += time.time() - postprocess_time_start
@@ -276,5 +294,7 @@ def get_sliced_prediction(
             print(f"{label} performed in {durations_in_seconds[key]} seconds.")
 
     return PredictionResult(
-        image=image, object_prediction_list=object_prediction_list, durations_in_seconds=durations_in_seconds
+        image=image,
+        object_prediction_list=object_prediction_list,
+        durations_in_seconds=durations_in_seconds,
     )
