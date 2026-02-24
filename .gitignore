@@ -45,7 +45,6 @@ Thumbs.db
 ehthumbs.db
 
 # Project-specific (large or generated)
-data/
 weights/
 *.onnx
 *.pt
