@@ -15,22 +15,14 @@ class SlicedImage:
 
 class SliceImageResult:
     def __init__(self, original_image_size: list[int], image_dir: str | None = None):
-        """
-        image_dir: str
-            Directory of the sliced image exports.
-        original_image_size: list of int
-            Size of the unsliced original image in [height, width]
-        """
         self.original_image_height = original_image_size[0]
         self.original_image_width = original_image_size[1]
         self.image_dir = image_dir
-
         self._sliced_image_list: list[SlicedImage] = []
 
     def add_sliced_image(self, sliced_image: SlicedImage):
         if not isinstance(sliced_image, SlicedImage):
             raise TypeError("sliced_image must be a SlicedImage instance")
-
         self._sliced_image_list.append(sliced_image)
 
     @property
@@ -39,61 +31,35 @@ class SliceImageResult:
 
     @property
     def images(self):
-        """Returns sliced images.
-
-        Returns:
-            images: a list of np.array
-        """
-        images = []
-        for sliced_image in self._sliced_image_list:
-            images.append(sliced_image.image)
-        return images
+        """Returns sliced images as a list of np.ndarray."""
+        return [s.image for s in self._sliced_image_list]
 
     @property
-    def starting_pixels(self) -> list[int]:
-        """Returns a list of starting pixels for each slice.
-
-        Returns:
-            starting_pixels: a list of starting pixel coords [x,y]
-        """
-        starting_pixels = []
-        for sliced_image in self._sliced_image_list:
-            starting_pixels.append(sliced_image.starting_pixel)
-        return starting_pixels
+    def starting_pixels(self) -> list[list[int]]:
+        """Returns starting pixel coords [x, y] for each slice."""
+        return [s.starting_pixel for s in self._sliced_image_list]
 
     @property
-    def filenames(self) -> list[int]:
-        """Returns a list of filenames for each slice.
+    def filenames(self) -> list[str]:
+        """Returns filename for each slice."""
+        return [s.coco_image.file_name for s in self._sliced_image_list]
 
-        Returns:
-            filenames: a list of filenames as str
-        """
-        filenames = []
-        for sliced_image in self._sliced_image_list:
-            filenames.append(sliced_image.coco_image.file_name)
-        return filenames
+    def _item_at(self, i: int):
+        return {
+            "image": self.images[i],
+            "starting_pixel": self.starting_pixels[i],
+            "filename": self.filenames[i],
+        }
 
     def __getitem__(self, i):
-        def _prepare_ith_dict(i):
-            return {
-                "image": self.images[i],
-                "starting_pixel": self.starting_pixels[i],
-                "filename": self.filenames[i],
-            }
-
-        if isinstance(i, np.ndarray):
-            i = i.tolist()
-
+        i = i.tolist() if isinstance(i, np.ndarray) else i
         if isinstance(i, int):
-            return _prepare_ith_dict(i)
-        elif isinstance(i, slice):
-            start, stop, step = i.indices(len(self))
-            return [_prepare_ith_dict(i) for i in range(start, stop, step)]
-        elif isinstance(i, (tuple, list)):
-            accessed_mapping = map(_prepare_ith_dict, i)
-            return list(accessed_mapping)
-        else:
-            raise NotImplementedError(f"{type(i)}")
+            return self._item_at(i)
+        if isinstance(i, slice):
+            return [self._item_at(j) for j in range(*i.indices(len(self)))]
+        if isinstance(i, (tuple, list)):
+            return [self._item_at(j) for j in i]
+        raise NotImplementedError(f"{type(i)}")
 
     def __len__(self):
         return len(self._sliced_image_list)

@@ -73,45 +73,20 @@ def calc_slice_and_overlap_params(
 
 
 def calc_ratio_and_slice(orientation: Literal["vertical", "horizontal", "square"], slide: int = 1, ratio: float = 0.1):
-    """
-    According to image resolution calculation overlap params
-    Args:
-        orientation: image capture angle
-        slide: sliding window
-        ratio: buffer value
-
-    Returns:
-        overlap params
-    """
-    if orientation == "vertical":
-        slice_row, slice_col, overlap_height_ratio, overlap_width_ratio = slide, slide * 2, ratio, ratio
-    elif orientation == "horizontal":
-        slice_row, slice_col, overlap_height_ratio, overlap_width_ratio = slide * 2, slide, ratio, ratio
-    elif orientation == "square":
-        slice_row, slice_col, overlap_height_ratio, overlap_width_ratio = slide, slide, ratio, ratio
-    else:
+    """Return (slice_row, slice_col, overlap_height_ratio, overlap_width_ratio) for given orientation."""
+    mapping = {
+        "vertical": (slide, slide * 2, ratio, ratio),
+        "horizontal": (slide * 2, slide, ratio, ratio),
+        "square": (slide, slide, ratio, ratio),
+    }
+    if orientation not in mapping:
         raise ValueError(f"Invalid orientation: {orientation}. Must be one of 'vertical', 'horizontal', or 'square'.")
-
-    return slice_row, slice_col, overlap_height_ratio, overlap_width_ratio
+    return mapping[orientation]
 
 
 def calc_aspect_ratio_orientation(width: int, height: int) -> str:
-    """
-
-    Args:
-        width:
-        height:
-
-    Returns:
-        image capture orientation
-    """
-
-    if width < height:
-        return "vertical"
-    elif width > height:
-        return "horizontal"
-    else:
-        return "square"
+    """Return image orientation: 'vertical', 'horizontal', or 'square'."""
+    return "vertical" if width < height else "horizontal" if width > height else "square"
 
 
 def get_auto_slice_params(height: int, width: int) -> tuple[int, int, int, int]:
@@ -129,13 +104,13 @@ def get_auto_slice_params(height: int, width: int) -> tuple[int, int, int, int]:
     Returns:
         slicing overlap params x_overlap, y_overlap, slice_width, slice_height
     """
-    resolution = height * width
-    factor = calc_resolution_factor(resolution)
+    factor = calc_resolution_factor(height * width)
     if factor <= 18:
-        return get_resolution_selector("low", height=height, width=width)
-    elif 18 <= factor < 21:
-        return get_resolution_selector("medium", height=height, width=width)
-    elif 21 <= factor < 24:
-        return get_resolution_selector("high", height=height, width=width)
+        res = "low"
+    elif factor < 21:
+        res = "medium"
+    elif factor < 24:
+        res = "high"
     else:
-        return get_resolution_selector("ultra-high", height=height, width=width)
+        res = "ultra-high"
+    return get_resolution_selector(res, height=height, width=width)

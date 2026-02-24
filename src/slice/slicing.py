@@ -1,13 +1,18 @@
-from PIL import Image
-from pathlib import Path
-import numpy as np
 import concurrent.futures
+import os
+from pathlib import Path
+
+import numpy as np
 from loguru import logger
-from typing import Literal
+from PIL import Image
 
 from src.utils.cv import read_image_as_pil
 from src.slice.utils import get_auto_slice_params
 from src.slice.objects import SliceImageResult, SlicedImage
+
+IMAGE_EXTENSIONS_LOSSY = {".jpg", ".jpeg"}
+IMAGE_EXTENSIONS_LOSSLESS = {".png", ".bmp", ".tiff", ".tif"}
+MAX_WORKERS = os.cpu_count() or 4
 
 
 def get_slice_bboxes(
@@ -52,12 +57,13 @@ def get_slice_bboxes(
     y_max = y_min = 0
 
     if slice_height and slice_width:
-        if overlap_height_ratio is not None and overlap_height_ratio >= 1.0:
-            raise ValueError("Overlap ratio must be less than 1.0")
-        if overlap_width_ratio is not None and overlap_width_ratio >= 1.0:
-            raise ValueError("Overlap ratio must be less than 1.0")
-        y_overlap = int((overlap_height_ratio if overlap_height_ratio is not None else 0.2) * slice_height)
-        x_overlap = int((overlap_width_ratio if overlap_width_ratio is not None else 0.2) * slice_width)
+        for name, r in (("height", overlap_height_ratio), ("width", overlap_width_ratio)):
+            if r is not None and r >= 1.0:
+                raise ValueError("Overlap ratio must be less than 1.0")
+        r_h = overlap_height_ratio if overlap_height_ratio is not None else 0.2
+        r_w = overlap_width_ratio if overlap_width_ratio is not None else 0.2
+        y_overlap = int(r_h * slice_height)
+        x_overlap = int(r_w * slice_width)
     elif auto_slice_resolution:
         x_overlap, y_overlap, slice_width, slice_height = get_auto_slice_params(height=image_height, width=image_width)
     else:
@@ -150,7 +156,7 @@ def slice_image(
     verboselog("image.shape: " + str(image_pil.size))
 
     image_width, image_height = image_pil.size
-    if not (image_width != 0 and image_height != 0):
+    if not image_width or not image_height:
         raise RuntimeError(f"invalid image size: {image_pil.size} for 'slice_image'.")
     slice_bboxes = get_slice_bboxes(
         image_height=image_height,
@@ -162,24 +168,13 @@ def slice_image(
         overlap_width_ratio=overlap_width_ratio,
     )
 
-    n_ims = 0
-
-    # init images and annotations lists
     sliced_image_result = SliceImageResult(original_image_size=[image_height, image_width], image_dir=output_dir)
-
     image_pil_arr = np.asarray(image_pil)
-    # iterate over slices
-    for slice_bbox in slice_bboxes:
-        n_ims += 1
 
-        # extract image
-        tlx = slice_bbox[0]
-        tly = slice_bbox[1]
-        brx = slice_bbox[2]
-        bry = slice_bbox[3]
+    for slice_bbox in slice_bboxes:
+        tlx, tly, brx, bry = slice_bbox
         image_pil_slice = image_pil_arr[tly:bry, tlx:brx]
 
-        # set image file suffixes
         slice_suffixes = "_".join(map(str, slice_bbox))
         if out_ext:
             suffix = out_ext
@@ -192,38 +187,16 @@ def slice_image(
         else:
             suffix = ".png"
 
-        # set image file name and path
-        slice_file_name = f"{output_file_name}_{slice_suffixes}{suffix}"
-
-        # create coco image
-        slice_width = slice_bbox[2] - slice_bbox[0]
-        slice_height = slice_bbox[3] - slice_bbox[1]
-
-        # create sliced image and append to sliced_image_result
-        sliced_image = SlicedImage(
-            image=image_pil_slice, starting_pixel=[slice_bbox[0], slice_bbox[1]]
-        )
+        sliced_image = SlicedImage(image=image_pil_slice, starting_pixel=[tlx, tly])
         sliced_image_result.add_sliced_image(sliced_image)
 
-    # export slices if output directory is provided
     if output_file_name and output_dir:
-        # Use a context-managed ThreadPoolExecutor for clean shutdown and
-        # limit workers based on CPU count to avoid oversubscription.
-        max_workers = min(MAX_WORKERS, len(sliced_image_result))
-        max_workers = max(1, max_workers)
+        n = len(sliced_image_result)
+        filenames = [f"{output_file_name}_{'_'.join(map(str, b))}{suffix}" for b in slice_bboxes]
+        max_workers = max(1, min(MAX_WORKERS, n))
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # map will schedule tasks and wait for completion when the context exits
-            list(
-                executor.map(
-                    _export_single_slice,
-                    sliced_image_result.images,
-                    [output_dir] * len(sliced_image_result),
-                    sliced_image_result.filenames,
-                )
-            )
+            list(executor.map(_export_single_slice, sliced_image_result.images, [output_dir] * n, filenames))
 
-    verboselog(
-        "Num slices: " + str(n_ims) + " slice_height: " + str(slice_height) + " slice_width: " + str(slice_width)
-    )
+    verboselog(f"Num slices: {len(slice_bboxes)} slice_height: {slice_height} slice_width: {slice_width}")
 
     return sliced_image_result
